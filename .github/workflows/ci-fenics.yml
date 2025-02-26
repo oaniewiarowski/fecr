@@ -5,6 +5,7 @@ on:
     branches:
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
 
@@ -17,10 +18,10 @@ jobs:
           fetch-depth: 2
 
       - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
-          python-version: 3.8
+          python-version: 3.12
 
       - name: Conda info
         shell: bash -l {0}
@@ -67,7 +68,7 @@ jobs:
       - name: Send coveralls
         shell: bash -l {0}
         env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           conda activate fenicsproject
           coveralls
