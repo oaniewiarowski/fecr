@@ -33,7 +33,7 @@ jobs:
         run: |
           conda config --set always_yes yes
           conda config --add channels conda-forge
-          conda create -n dolfinxproject -c conda-forge python=3.12
+          conda create -n dolfinxproject python=3.12
           conda activate dolfinxproject
           
           # System dependencies for DOLFINx
@@ -41,11 +41,11 @@ jobs:
           sudo apt-get install -y software-properties-common
           sudo apt-get install -y gmsh libgmsh-dev petsc-dev slepc-dev
           
-          # Install DOLFINx
-          python -m pip install --upgrade pip
-          python -m pip install "numpy>=2.0" fenics-dolfinx mpi4py
+          # Install DOLFINx via conda (not pip)
+          conda install -c conda-forge fenics-dolfinx mpich pyvista
           
           # Install testing tools
+          python -m pip install --upgrade pip
           python -m pip install pytest pytest-cov pytest-check coveralls fdm
           
           # Install pyadjoint for compatibility with DOLFINx
