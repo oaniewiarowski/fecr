@@ -309,3 +309,117 @@ class PyadjointBackend(AbstractBackend):
             return float(numpy_array)
         err_msg = f"Cannot convert numpy array to {pyadjoint_var_template}"
         raise ValueError(err_msg)
+
+
+class DolfinxBackend(AbstractBackend):
+    framework_name = "dolfinx"
+
+    def __init__(self):
+        import dolfinx
+        import dolfinx.fem
+        import dolfinx.la
+        self.dolfinx = dolfinx
+
+    @property
+    def Function(self):
+        return self.dolfinx.fem.Function
+
+    @property
+    def lib(self):
+        return self.dolfinx
+
+    def is_appropriate_type(self, fem_variable):
+        if isinstance(fem_variable, self.dolfinx.fem.Constant):
+            return True
+        if isinstance(fem_variable, self.dolfinx.fem.Function):
+            return True
+        if isinstance(fem_variable, self.dolfinx.la.Vector):
+            return True
+        return False
+
+    def to_numpy(self, dolfinx_var):
+        """Convert DOLFINx variable to NumPy array.
+        Serializes the input so that all MPI ranks have the same data."""
+        import mpi4py.MPI as MPI
+        comm = MPI.COMM_WORLD
+
+        if isinstance(dolfinx_var, self.dolfinx.fem.Constant):
+            return np.asarray(dolfinx_var.value)
+
+        if isinstance(dolfinx_var, self.dolfinx.la.Vector):
+            # Get local values first
+            local_array = dolfinx_var.array
+            
+            # Gather values from all processes
+            if comm.size > 1:
+                all_sizes = comm.allgather(len(local_array))
+                all_data = comm.allgather(local_array)
+                
+                # Concatenate all data
+                global_array = np.concatenate(all_data)
+            else:
+                global_array = local_array
+                
+            return np.asarray(global_array)
+
+        if isinstance(dolfinx_var, self.dolfinx.fem.Function):
+            # Get the DOFMap
+            dofmap = dolfinx_var.function_space.dofmap
+            
+            # Get the function vector
+            x = dolfinx_var.x
+            return self.to_numpy(x)
+
+        raise ValueError("Cannot convert " + str(type(dolfinx_var)))
+
+    def from_numpy(self, numpy_array, dolfinx_var_template):
+        """Convert numpy array to DOLFINx variable.
+        Distributes the input array across MPI ranks.
+        Input:
+            numpy_array (np.array): NumPy array to be converted to DOLFINx type
+            dolfinx_var_template (DOLFINxVariable): Templates for converting arrays to DOLFINx type
+        Output:
+            dolfinx_output (DOLFINxVariable): DOLFINx representation of the input numpy_array
+        """
+        import mpi4py.MPI as MPI
+        comm = MPI.COMM_WORLD
+
+        if isinstance(dolfinx_var_template, self.dolfinx.fem.Constant):
+            if numpy_array.shape == (1,):
+                return type(dolfinx_var_template)(numpy_array[0])
+            else:
+                return type(dolfinx_var_template)(numpy_array)
+
+        if isinstance(dolfinx_var_template, self.dolfinx.fem.Function):
+            function_space = dolfinx_var_template.function_space
+            
+            # Create a new function in the same space
+            u = type(dolfinx_var_template)(function_space)
+            
+            # Get the DOFMap and number of DOFs
+            dofmap = function_space.dofmap
+            dof_indices = dofmap.list.array()
+            
+            # Total number of DOFs globally
+            global_size = function_space.dofmap.index_map.size_global
+            
+            if numpy_array.size != global_size:
+                err_msg = (
+                    f"Cannot convert numpy array to Function:"
+                    f"Wrong size {numpy_array.size} vs {global_size}"
+                )
+                raise ValueError(err_msg)
+            
+            # Get global to local index map for this process
+            local_to_global = dofmap.index_map.local_to_global(np.arange(dofmap.index_map.size_local))
+            
+            # Map global indices to local data
+            local_indices = np.flatnonzero(np.isin(np.arange(global_size), local_to_global))
+            
+            # Set local values from the appropriate part of the global array
+            u.x.array[:] = numpy_array[local_indices]
+            
+            return u
+
+        err_msg = f"Cannot convert numpy array to {dolfinx_var_template}"
+        raise ValueError(err_msg)
