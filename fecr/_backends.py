@@ -166,9 +166,9 @@ class FenicsBackend(AbstractBackend):
                 )
                 raise ValueError(err_msg)
 
-            if numpy_array.dtype != np.float_:
+            if numpy_array.dtype != np.float64:
                 err_msg = (
-                    f"The numpy array must be of type {np.float_}, "
+                    f"The numpy array must be of type {np.float64}, "
                     "but got {numpy_array.dtype}"
                 )
                 raise ValueError(err_msg)

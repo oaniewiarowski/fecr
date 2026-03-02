@@ -70,3 +70,14 @@ def test_numpy_to_fenics_function():
     assert numpy.allclose(
         fenics_test_input.vector().get_local(), expected.vector().get_local()
     )
+
+
+def test_from_numpy_float64_dtype():
+    # Regression test: np.float_ was removed in NumPy 2.0; from_numpy must
+    # accept arrays of dtype np.float64 without raising AttributeError.
+    mesh = fenics.UnitIntervalMesh(10)
+    V = fenics.FunctionSpace(mesh, "DG", 0)
+    template = fenics.Function(V)
+    arr = numpy.zeros(V.dim(), dtype=numpy.float64)
+    result = from_numpy(arr, template)
+    assert numpy.allclose(result.vector().get_local(), arr)
